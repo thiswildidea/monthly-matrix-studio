@@ -1,0 +1,1056 @@
+<!DOCTYPE html>
+<html lang="zh-CN" translate="no">
+<head>
+<meta charset="utf-8">
+<meta name="google" content="notranslate">
+<title>月度矩阵工作室</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  :root{
+    --bg:#070b16; --panel:#0e1526; --line:rgba(120,150,210,.18);
+    --txt:#e7eefc; --dim:#8296b8; --accent:#22c55e;
+  }
+  html,body{height:100%}
+  body{background:var(--bg);color:var(--txt);overflow:hidden;display:flex;
+       font-family:"Microsoft YaHei","PingFang SC","Hiragino Sans GB",sans-serif}
+
+  #panel{width:352px;flex:none;height:100vh;overflow-y:auto;
+         background:var(--panel);border-right:1px solid var(--line);padding:20px}
+  #panel h1{font-size:17px;font-weight:600;margin-bottom:3px}
+  #panel .sub{font-size:12px;color:var(--dim);margin-bottom:20px}
+
+  .grp{margin-bottom:18px}
+  .grp>label{display:block;font-size:12px;color:var(--dim);margin-bottom:8px;letter-spacing:.4px}
+
+  .seg{display:flex;gap:6px;flex-wrap:wrap}
+  .seg button{flex:1 1 auto;min-width:54px;padding:7px 4px;font:inherit;font-size:12.5px;
+    color:var(--dim);background:rgba(90,130,220,.10);border:1px solid var(--line);
+    border-radius:8px;cursor:pointer;transition:.16s}
+  .seg button:hover{background:rgba(110,160,255,.2);color:var(--txt)}
+  .seg button.on{background:var(--accent);border-color:var(--accent);color:#06240f;font-weight:600}
+
+  .row{display:flex;gap:8px;align-items:center}
+  input[type=text]{flex:1;width:100%;padding:8px 10px;font:inherit;font-size:13px;
+    color:var(--txt);background:rgba(90,130,220,.10);border:1px solid var(--line);border-radius:8px}
+  input[type=text]::placeholder{color:#5d7199}
+  input[type=range]{width:100%;accent-color:var(--accent)}
+  .val{font-size:12.5px;color:var(--txt);font-variant-numeric:tabular-nums}
+
+  .pad{display:flex;gap:9px;align-items:center;margin-bottom:5px}
+  .pad>span:first-child{width:13px;font-size:12px;color:var(--dim);flex:none}
+  .pad .val{width:30px;text-align:right;flex:none}
+
+  .mini{padding:8px 12px;font:inherit;font-size:12.5px;color:#bbf7d0;cursor:pointer;white-space:nowrap;
+    background:rgba(34,197,94,.20);border:1px solid rgba(34,197,94,.45);border-radius:8px}
+  .mini:hover{background:rgba(34,197,94,.36)}
+
+  #searchWrap{position:relative;flex:1}
+  #sugg{position:absolute;top:calc(100% + 5px);left:0;right:0;z-index:50;display:none;
+    max-height:250px;overflow-y:auto;background:#131c33;border:1px solid var(--line);
+    border-radius:9px;box-shadow:0 12px 34px rgba(0,0,0,.6)}
+  #sugg div{display:flex;align-items:center;gap:9px;padding:8px 11px;font-size:12.5px;
+    cursor:pointer;border-bottom:1px solid rgba(120,150,210,.08)}
+  #sugg div:last-child{border-bottom:none}
+  #sugg div:hover,#sugg div.sel{background:rgba(34,197,94,.28)}
+  #sugg b{color:var(--txt);font-weight:600}
+  #sugg span{color:var(--dim);font-variant-numeric:tabular-nums}
+  #sugg em{font-style:normal;margin-left:auto;font-size:11px;padding:1px 7px;border-radius:4px;
+    background:rgba(34,197,94,.25);color:#bbf7d0}
+
+  #picked{display:flex;flex-wrap:wrap;gap:6px;margin-top:9px}
+  .chip{display:flex;align-items:center;gap:5px;padding:4px 8px;font-size:12px;
+    background:rgba(90,130,220,.12);border:1px solid var(--line);border-radius:999px;color:var(--dim)}
+  .chip b{font-weight:600;color:var(--txt)}
+  .chip i{font-style:normal;opacity:.5;padding-left:2px;cursor:pointer}
+  .chip i:hover{opacity:1;color:#fca5a5}
+
+  #picker{display:none;grid-template-columns:repeat(3,1fr);gap:5px;margin-top:9px;
+    max-height:220px;overflow-y:auto;padding:9px;border:1px solid var(--line);border-radius:9px;
+    background:rgba(90,130,220,.06)}
+  #picker label{display:flex;align-items:center;gap:5px;font-size:11.5px;color:var(--dim);cursor:pointer}
+  #picker input{accent-color:var(--accent);width:13px;height:13px;flex:none}
+  #picker label.on{color:var(--txt)}
+  #pickCount{float:right;font-size:11.5px;color:var(--dim)}
+
+  .chk{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--dim);cursor:pointer;margin-top:9px}
+  .chk input{accent-color:var(--accent);width:14px;height:14px}
+
+  .act{display:flex;flex-direction:column;gap:9px;margin-top:20px}
+  .act button{padding:11px;font:inherit;font-size:14px;font-weight:600;border-radius:10px;
+    cursor:pointer;border:1px solid transparent;transition:.16s}
+  #btnFetch{background:rgba(90,130,220,.16);border-color:var(--line);color:var(--txt)}
+  #btnFetch:hover{background:rgba(110,160,255,.28)}
+  #btnPreview{background:rgba(6,182,212,.16);border-color:rgba(6,182,212,.4);color:#7fe3f5}
+  #btnPreview:hover{background:rgba(6,182,212,.3)}
+  #btnExport{background:linear-gradient(135deg,#22c55e,#0ea5e9);color:#fff}
+  #btnExport:hover{filter:brightness(1.12)}
+  #btnCover{background:rgba(90,130,220,.10);border-color:var(--line);color:var(--dim);
+    font-size:12.5px;font-weight:400;padding:9px}
+  #btnCover:hover{background:rgba(110,160,255,.22);color:var(--txt)}
+  .act button:disabled{opacity:.4;cursor:not-allowed;filter:none}
+
+  #status{margin-top:13px;padding:10px 12px;border-radius:9px;font-size:12px;line-height:1.65;
+    background:rgba(90,130,220,.08);border:1px solid var(--line);color:var(--dim)}
+  #status b{color:var(--txt);font-weight:600}
+  #status.err{background:rgba(239,68,68,.1);border-color:rgba(239,68,68,.4);color:#fca5a5}
+  #status.ok{background:rgba(34,197,94,.1);border-color:rgba(34,197,94,.36);color:#86efac}
+
+  #bar{height:4px;background:rgba(120,150,210,.16);border-radius:3px;overflow:hidden;margin-top:11px;display:none}
+  #bar i{display:block;height:100%;width:0;background:linear-gradient(90deg,#22c55e,#0ea5e9)}
+
+  #stage{flex:1;display:flex;align-items:center;justify-content:center;position:relative;padding:18px}
+  #wrap{position:relative}
+  canvas{height:100%;width:100%;border-radius:14px;box-shadow:0 18px 60px rgba(0,0,0,.6);display:block}
+  #safe{position:absolute;inset:0;pointer-events:none;display:none}
+  #safe div{position:absolute;border:1px dashed rgba(255,80,80,.55);border-radius:4px}
+  #safe span{position:absolute;font-size:10px;color:rgba(255,120,120,.9);
+    background:rgba(0,0,0,.5);padding:1px 5px;border-radius:3px}
+  #recdot{position:absolute;top:14px;left:14px;display:none;align-items:center;gap:7px;
+    background:rgba(0,0,0,.6);padding:5px 11px;border-radius:999px;font-size:12px;color:#fff}
+  #recdot i{width:8px;height:8px;border-radius:50%;background:#ef4444;animation:blink 1s infinite}
+  @keyframes blink{50%{opacity:.25}}
+</style>
+</head>
+<body>
+<div id="panel">
+  <h1>月度矩阵工作室</h1>
+  <div class="sub">月K 一次十年 · 竖屏矩阵 · 导出 MP4</div>
+
+  <div class="grp">
+    <label>矩阵类型</label>
+    <div class="seg" id="segMode">
+      <button data-mode="year" class="on">单标的 年×月</button>
+      <button data-mode="cmp">多标的 标的×月</button>
+    </div>
+  </div>
+
+  <div id="boxYear">
+    <div class="grp">
+      <label>标的</label>
+      <div class="row">
+        <div id="searchWrap">
+          <input type="text" id="code" autocomplete="off" spellcheck="false"
+                 placeholder="代码 / 名称 / 拼音，指数个股都行">
+          <div id="sugg"></div>
+        </div>
+        <button class="mini" id="btnUse">使用</button>
+      </div>
+      <div class="seg" id="segPreset" style="margin-top:9px"></div>
+      <div id="curTarget" style="margin-top:9px;font-size:12.5px;color:var(--txt)"></div>
+    </div>
+    <div class="grp">
+      <label>年数</label>
+      <div class="seg" id="segYears">
+        <button data-y="5">近5年</button>
+        <button data-y="10" class="on">近10年</button>
+        <button data-y="0">全部</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="boxCmp" style="display:none">
+    <div class="grp">
+      <label>对比清单 <span id="pickCount"></span></label>
+      <div class="seg" id="segList">
+        <button data-list="l1" class="on">中证一级</button>
+        <button data-list="theme">热门主题</button>
+        <button data-list="index">宽基指数</button>
+        <button data-list="stocks">自选股</button>
+      </div>
+      <div id="picker"></div>
+      <div id="stockBox" style="display:none">
+        <div class="row" style="margin-top:9px">
+          <div style="position:relative;flex:1">
+            <input type="text" id="code2" autocomplete="off" spellcheck="false"
+                   placeholder="代码 / 名称 / 拼音">
+            <div id="sugg2" style="display:none"></div>
+          </div>
+          <button class="mini" id="btnAdd">加入</button>
+        </div>
+        <div id="picked"></div>
+      </div>
+    </div>
+    <div class="grp">
+      <label>月数</label>
+      <div class="seg" id="segMonths">
+        <button data-n="12" class="on">近12月</button>
+        <button data-n="18">近18月</button>
+        <button data-n="24">近24月</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="grp">
+    <label>视频时长 <span class="val" id="vDur">45 秒</span></label>
+    <input type="range" id="rDur" min="10" max="180" step="5" value="45">
+  </div>
+
+  <div class="grp">
+    <label>分辨率（竖屏 9:16）</label>
+    <div class="seg" id="segRes">
+      <button data-w="720"  data-h="1280">720p</button>
+      <button data-w="1080" data-h="1920" class="on">1080p</button>
+      <button data-w="1440" data-h="2560">1440p</button>
+    </div>
+  </div>
+
+  <div class="grp">
+    <label>帧率</label>
+    <div class="seg" id="segFps">
+      <button data-fps="30" class="on">30 fps</button>
+      <button data-fps="60">60 fps</button>
+    </div>
+  </div>
+
+  <div class="grp">
+    <label>清晰度</label>
+    <div class="seg" id="segQ">
+      <button data-q="6">标准</button>
+      <button data-q="10" class="on">高清</button>
+      <button data-q="16">超清</button>
+    </div>
+    <label class="chk"><input type="checkbox" id="cbSafe">显示抖音安全区参考线（不会录进视频）</label>
+    <label class="chk"><input type="checkbox" id="cbNoTitle">隐藏标题（下方内容整体上移）</label>
+  </div>
+
+  <div class="grp">
+    <label>标题文字</label>
+    <input type="text" id="tTitle" autocomplete="off" spellcheck="false"
+           placeholder="留空则自动生成" maxlength="24">
+  </div>
+
+  <div class="grp">
+    <label>图表边距（1080×1920 基准像素）</label>
+    <div class="pad"><span>左</span><input type="range" id="rPadL" min="20" max="200" step="2" value="60"><span class="val" id="vPadL">60</span></div>
+    <div class="pad"><span>右</span><input type="range" id="rPadR" min="20" max="200" step="2" value="60"><span class="val" id="vPadR">60</span></div>
+    <div class="pad"><span>下</span><input type="range" id="rPadB" min="150" max="420" step="5" value="250"><span class="val" id="vPadB">250</span></div>
+  </div>
+
+  <div class="act">
+    <button id="btnFetch">① 获取数据</button>
+    <button id="btnPreview" disabled>② 预览播放</button>
+    <button id="btnExport" disabled>③ 导出 MP4</button>
+    <button id="btnCover" disabled>导出当前帧为封面 PNG</button>
+  </div>
+
+  <div id="status">选好标的后点「获取数据」。</div>
+  <div id="bar"><i></i></div>
+</div>
+
+<div id="stage">
+  <div id="wrap">
+    <canvas id="cv" width="1080" height="1920"></canvas>
+    <div id="safe"></div>
+    <div id="recdot"><i></i><span id="recTxt">录制中</span></div>
+  </div>
+</div>
+<script>
+'use strict';
+/* ==================== 标的清单 ==================== */
+const LIST_INDEX = [
+  { code:'sh000001', name:'上证指数' }, { code:'sz399001', name:'深证成指' },
+  { code:'sh000300', name:'沪深300' }, { code:'sh000905', name:'中证500' },
+  { code:'sz399006', name:'创业板指' }, { code:'sh000688', name:'科创50' },
+  { code:'sz399005', name:'中小100' }, { code:'sh000016', name:'上证50' },
+];
+const LIST_L1 = [
+  { code:'sh000928', name:'能源' }, { code:'sh000929', name:'材料' },
+  { code:'sh000930', name:'工业' }, { code:'sh000931', name:'可选消费' },
+  { code:'sh000932', name:'主要消费' }, { code:'sh000933', name:'医药卫生' },
+  { code:'sh000934', name:'金融' }, { code:'sh000935', name:'信息技术' },
+  { code:'sh000936', name:'通信' }, { code:'sh000937', name:'公用事业' },
+];
+const LIST_THEME = [
+  { code:'sz399997', name:'白酒' }, { code:'sz399975', name:'证券' },
+  { code:'sz399986', name:'银行' }, { code:'sz399989', name:'医疗' },
+  { code:'sz399967', name:'军工' }, { code:'sz399971', name:'传媒' },
+  { code:'sz399808', name:'新能源' }, { code:'sz399976', name:'新能源车' },
+  { code:'sh000827', name:'环保' }, { code:'sh000922', name:'红利' },
+  { code:'sz399998', name:'煤炭' }, { code:'sh000819', name:'有色金属' },
+  { code:'sz399995', name:'基建' }, { code:'sh000949', name:'农业' },
+];
+const MAX_CMP = 14, MIN_CMP = 2;
+
+/* ==================== 状态 ==================== */
+const cfg = { mode:'year', target:{ code:'sh000001', name:'上证指数' }, years:10,
+              list:'l1', custom:[], stocks:[], months:12,
+              dur:45, w:1080, h:1920, fps:30, mbps:10,
+              padL:60, padR:60, padB:250, hideTitle:false, title:'' };
+
+const API = 'https://proxy.finance.qq.com/ifzqgtimg/appstock/app/newfqkline/get';
+const SEARCH_API = 'https://smartbox.gtimg.cn/s3/';
+const MIME = 'video/mp4;codecs=avc1.640028';
+const MARKET_LABEL = { sh:'沪', sz:'深', bj:'京', hk:'港', us:'美' };
+const STOCK_KEY = 'monthlyMatrix.stocks';
+const CFG_KEY = 'monthlyMatrix.cfg';
+
+let DATA = null;      // { spec } 见 buildSpec
+let anim = null;
+let playing = false, exporting = false, elapsed = 0, lastTs = null;
+let lastFrameT = 0;
+
+/* ==================== 工具 ==================== */
+const $ = id => document.getElementById(id);
+const clamp = (v,a,b) => Math.max(a, Math.min(b,v));
+const pad2 = n => String(n).padStart(2,'0');
+const cleanName = s => String(s || '').replace(/\s+/g, '');
+const easeOutCubic = x => 1 - Math.pow(1-x,3);
+
+function setStatus(html, kind){ const el=$('status'); el.className = kind||''; el.innerHTML = html; }
+function showBar(on, p){ $('bar').style.display = on?'block':'none'; $('bar').firstElementChild.style.width = ((p||0)*100).toFixed(1)+'%'; }
+
+function jsonp(url){
+  return new Promise((resolve, reject) => {
+    const cb = '__jp' + Math.random().toString(36).slice(2);
+    const s = document.createElement('script');
+    const timer = setTimeout(() => { cleanup(); reject(new Error('请求超时')); }, 15000);
+    function cleanup(){ clearTimeout(timer); delete window[cb]; s.remove(); }
+    window[cb] = d => { cleanup(); resolve(d); };
+    s.onerror = () => { cleanup(); reject(new Error('网络请求失败')); };
+    s.src = url + '&_callback=' + cb;
+    document.head.appendChild(s);
+  });
+}
+
+/** 涨红跌绿，深浅按幅度占最大幅度的比例。开方是为了让小涨小跌也看得见 */
+function retColor(v, maxAbs){
+  const k = Math.sqrt(clamp(Math.abs(v)/(maxAbs || 1), 0, 1));
+  const lo = v >= 0 ? [86,42,48] : [26,66,54];
+  const hi = v >= 0 ? [239,68,68] : [34,197,94];
+  return lo.map((c,i) => Math.round(c + (hi[i]-c)*k));
+}
+const rgba = (c,a) => `rgba(${c[0]},${c[1]},${c[2]},${a})`;
+
+const SH3 = ['600','601','603','605','688','689','900'];
+const SZ3 = ['000','001','002','003','300','301','200'];
+function normalizeCode(raw){
+  const s = String(raw).trim().toLowerCase().replace(/\s+/g,'');
+  if (/^(sh|sz|bj|hk|us)/.test(s)) return s;
+  if (/^\d{6}$/.test(s)){
+    const p3 = s.slice(0,3);
+    if (SH3.includes(p3)) return 'sh' + s;
+    if (SZ3.includes(p3)) return 'sz' + s;
+    const p1 = s.slice(0,1);
+    if (p1 === '6') return 'sh' + s;
+    if (p1 === '0' || p1 === '3') return 'sz' + s;
+    return 'bj' + s;
+  }
+  if (/^\d{5}$/.test(s)) return 'hk' + s;
+  if (/^[a-z.]{1,6}$/.test(s)) return 'us' + s.toUpperCase();
+  return '';
+}
+
+/* ==================== 检索 ====================
+   smartbox 两个坑：响应体是 GBK 但响应头谎称 utf-8，必须显式给 script 指定
+   charset；且没有 CORS 头，fetch 会被拦，只能用 script 标签。 */
+function searchStock(q){
+  return new Promise((resolve, reject) => {
+    const s = document.createElement('script');
+    s.charset = 'GBK';
+    const timer = setTimeout(() => { cleanup(); reject(new Error('搜索超时')); }, 8000);
+    function cleanup(){ clearTimeout(timer); s.remove(); }
+    window.v_hint = '';
+    s.onload = () => {
+      const raw = String(window.v_hint || '');
+      cleanup();
+      if (!raw || raw === 'N') return resolve([]);
+      resolve(raw.split('^').map(it => {
+        const f = it.split('~');
+        return { market:f[0], num:f[1], name:cleanName(f[2]), type:f[4], code:(f[0]||'')+(f[1]||'') };
+      }).filter(r => r.num && r.name));
+    };
+    s.onerror = () => { cleanup(); reject(new Error('搜索请求失败')); };
+    s.src = SEARCH_API + '?v=2&t=all&q=' + encodeURIComponent(q);
+    document.head.appendChild(s);
+  });
+}
+
+/** 一个搜索框 = 输入框 + 下拉层 + 选中回调，两处复用 */
+function wireSearch(inputId, boxId, onPick){
+  let timer = null, items = [], idx = -1;
+  const box = $(boxId);
+  const hide = () => { box.style.display = 'none'; idx = -1; };
+  const render = list => {
+    box.innerHTML = ''; items = list; idx = -1;
+    if (!list.length){ hide(); return; }
+    list.forEach((r,i) => {
+      const d = document.createElement('div');
+      const b = document.createElement('b');     b.textContent = r.name;
+      const sp = document.createElement('span'); sp.textContent = r.num;
+      const em = document.createElement('em');
+      em.textContent = (MARKET_LABEL[r.market] || r.market) + (r.type === 'ZS' ? ' 指数' : '');
+      d.append(b, sp, em);
+      d.onmousedown = e => { e.preventDefault(); hide(); onPick(r.code, r.name); };
+      box.appendChild(d);
+    });
+    box.style.display = 'block';
+  };
+  $(inputId).addEventListener('input', () => {
+    const q = $(inputId).value.trim();
+    clearTimeout(timer);
+    if (!q){ hide(); return; }
+    timer = setTimeout(async () => {
+      try { render((await searchStock(q)).slice(0,8)); } catch (e){ hide(); }
+    }, 220);
+  });
+  $(inputId).addEventListener('keydown', e => {
+    const n = items.length;
+    if (e.key === 'Escape'){ hide(); return; }
+    if (e.key === 'Enter'){
+      e.preventDefault();
+      if (idx >= 0 && items[idx]) { hide(); onPick(items[idx].code, items[idx].name); }
+      else onPick($(inputId).value, '');
+      return;
+    }
+    if (!n || box.style.display === 'none') return;
+    if (e.key === 'ArrowDown'){ e.preventDefault(); idx = (idx+1)%n; }
+    else if (e.key === 'ArrowUp'){ e.preventDefault(); idx = (idx-1+n)%n; }
+    else return;
+    [...box.children].forEach((c,i) => c.classList.toggle('sel', i === idx));
+  });
+  $(inputId).addEventListener('blur', () => setTimeout(hide, 120));
+}
+
+/* ==================== 清单与选择 ==================== */
+const ALL_SECTORS = (() => {
+  const seen = new Set(), out = [];
+  for (const it of LIST_L1.concat(LIST_THEME, LIST_INDEX)){
+    if (seen.has(it.code)) continue;
+    seen.add(it.code); out.push(it);
+  }
+  return out;
+})();
+
+function cmpList(){
+  if (cfg.list === 'l1') return LIST_L1;
+  if (cfg.list === 'theme') return LIST_THEME;
+  if (cfg.list === 'index') return LIST_INDEX;
+  return cfg.stocks;
+}
+function listLabel(){
+  return cfg.list === 'l1' ? '中证一级行业' : cfg.list === 'theme' ? '热门主题'
+       : cfg.list === 'index' ? '宽基指数' : '自选股';
+}
+function updateCount(){
+  const n = cmpList().length;
+  const bad = n < MIN_CMP || n > MAX_CMP;
+  $('pickCount').innerHTML = bad
+    ? `<span style="color:#fca5a5">已选 ${n} 个（需 ${MIN_CMP}–${MAX_CMP}）</span>`
+    : `已选 ${n} 个`;
+}
+
+function setTarget(code, name){
+  code = normalizeCode(code);
+  if (!code){ setStatus('代码格式无法识别', 'err'); return; }
+  cfg.target = { code, name: cleanName(name) || code.toUpperCase() };
+  $('code').value = '';
+  $('curTarget').innerHTML = `当前：<b>${cfg.target.name}</b> <span style="color:var(--dim)">${code.toUpperCase()}</span>`;
+  saveCfg();
+}
+
+function addStock(code, name){
+  code = normalizeCode(code);
+  if (!code) return;
+  if (cfg.stocks.some(s => s.code === code)){ $('code2').value=''; return; }
+  if (cfg.stocks.length >= MAX_CMP){ setStatus(`最多 ${MAX_CMP} 个`, 'err'); return; }
+  cfg.stocks.push({ code, name: cleanName(name) || code.toUpperCase() });
+  localStorage.setItem(STOCK_KEY, JSON.stringify(cfg.stocks));
+  $('code2').value = '';
+  renderPicked(); updateCount();
+}
+
+function renderPicked(){
+  const box = $('picked'); box.innerHTML = '';
+  cfg.stocks.forEach(s => {
+    const chip = document.createElement('div'); chip.className = 'chip';
+    const b = document.createElement('b'); b.textContent = s.name;
+    const x = document.createElement('i');  x.textContent = '×';
+    x.onclick = () => {
+      cfg.stocks = cfg.stocks.filter(v => v.code !== s.code);
+      localStorage.setItem(STOCK_KEY, JSON.stringify(cfg.stocks));
+      renderPicked(); updateCount();
+    };
+    chip.append(b, x); box.appendChild(chip);
+  });
+}
+
+function renderPresets(){
+  const box = $('segPreset'); box.innerHTML = '';
+  LIST_INDEX.slice(0,6).forEach(it => {
+    const b = document.createElement('button');
+    b.textContent = it.name;
+    b.onclick = () => setTarget(it.code, it.name);
+    box.appendChild(b);
+  });
+}
+
+/* ==================== 取数 ====================
+   月K：param 里把 day 换成 month，一次能拿 120 根也就是十年。
+   日线那条「单次最多约 640 根」的限制在月K上根本碰不到。 */
+async function fetchMonthly(code){
+  const param = encodeURIComponent(`${code},month,,,130,qfq`);
+  const res = await jsonp(`${API}?param=${param}`);
+  if (!res || res.code !== 0) throw new Error('月K接口异常');
+  const node = res.data[code];
+  const bars = node && (node.qfqmonth || node.month);
+  if (!bars || bars.length < 13) throw new Error('月K数据不足');
+
+  const name = cleanName(node.qt && node.qt[code] && node.qt[code][1]);
+  const rows = bars.map(b => ({ ym: b[0].slice(0,7), close: parseFloat(b[2]) }))
+                   .filter(r => r.close > 0);
+  // 最后一根是当月、还没走完，留着会让最近一格显示半个月的涨幅
+  const now = new Date();
+  const thisYM = `${now.getFullYear()}-${pad2(now.getMonth()+1)}`;
+  const done = rows.filter(r => r.ym < thisYM);
+  if (done.length < 13) throw new Error('可用月份不足');
+  return { name, series: done.slice(1).map((r,i) => ({ ym:r.ym, ret:(r.close/done[i].close - 1)*100 })) };
+}
+
+/** 一组月度收益连乘成区间收益。月涨跌幅直接相加会高估波动大的区间 */
+const compound = rs => (rs.reduce((p,v) => p*(1+v/100), 1) - 1) * 100;
+
+async function loadData(){
+  if (cfg.mode === 'year'){
+    setStatus(`正在获取 <b>${cfg.target.name}</b> 的月K …`);
+    const { name, series } = await fetchMonthly(cfg.target.code);
+    if (name) cfg.target.name = name;
+    let s = series;
+    if (cfg.years > 0){
+      const minY = new Date().getFullYear() - cfg.years + 1;
+      s = s.filter(r => +r.ym.slice(0,4) >= minY);
+    }
+    if (s.length < 6) throw new Error('该区间月份太少');
+    DATA = buildYearSpec(s);
+  } else {
+    const list = cmpList();
+    if (list.length < MIN_CMP) throw new Error(`至少选 ${MIN_CMP} 个标的`);
+    if (list.length > MAX_CMP) throw new Error(`最多 ${MAX_CMP} 个，再多竖屏放不下`);
+    const got = [];
+    for (let i = 0; i < list.length; i++){
+      setStatus(`正在获取 <b>${list[i].name}</b> … (${i+1}/${list.length})`);
+      const { name, series } = await fetchMonthly(list[i].code);
+      got.push({ code:list[i].code, name: list[i].name || name, series });
+    }
+    DATA = buildCmpSpec(got, cfg.months);
+  }
+  return DATA;
+}
+
+/** 年×月：行是年份，列是 1~12 月，末列全年 */
+function buildYearSpec(series){
+  const years = [...new Set(series.map(r => +r.ym.slice(0,4)))].sort();
+  const cells = series.map(r => ({
+    row: years.indexOf(+r.ym.slice(0,4)),
+    col: +r.ym.slice(5,7) - 1,
+    v: r.ret, label: r.ym,
+  }));
+  const tail = years.map(y => compound(series.filter(r => +r.ym.slice(0,4) === y).map(r => r.ret)));
+  // 每个自然月在所有年份上的平均 —— 「几月最容易赚钱」的答案
+  const byMonth = Array.from({length:12}, () => []);
+  series.forEach(r => byMonth[+r.ym.slice(5,7)-1].push(r.ret));
+  const avg = byMonth.map(a => a.length ? a.reduce((s,v)=>s+v,0)/a.length : 0);
+  let best = 0, worst = 0;
+  avg.forEach((v,i) => { if (v > avg[best]) best = i; if (v < avg[worst]) worst = i; });
+
+  return {
+    kind: 'year',
+    rowLabels: years.map(String),
+    colLabels: Array.from({length:12}, (_,i) => String(i+1)),
+    tailLabel: '全年', tail, cells,
+    span: `${years[0]} 年至今 · 共 ${series.length} 个月`,
+    title: `${cfg.target.name}月度收益${years.length}年图`,
+    sub: `${cfg.target.name} ${cfg.target.code.toUpperCase()} · 月度涨跌幅 · 单位：%`,
+    stats: [
+      ['最强月', `${best+1}月 ${avg[best] > 0 ? '+' : ''}${avg[best].toFixed(1)}%`],
+      ['最弱月', `${worst+1}月 ${avg[worst].toFixed(1)}%`],
+      ['上涨月占比', Math.round(series.filter(r => r.ret > 0).length / series.length * 100) + '%'],
+      ['最强单月', '+' + Math.max(...series.map(r => r.ret)).toFixed(1) + '%'],
+    ],
+  };
+}
+
+/** 标的×月：行是标的，列是最近 N 个月，末列区间累计 */
+function buildCmpSpec(got, n){
+  // 只保留所有标的都有的月份，避免某个标的缺一格就整行错位
+  let months = got[0].series.map(r => r.ym);
+  for (const g of got) months = months.filter(m => g.series.some(r => r.ym === m));
+  months = months.slice(-n);
+  if (months.length < 3) throw new Error('各标的共有的月份不足');
+
+  const cells = [];
+  got.forEach((g, row) => months.forEach((m, col) => {
+    const hit = g.series.find(r => r.ym === m);
+    if (hit) cells.push({ row, col, v: hit.ret, label: `${g.name} ${m}` });
+  }));
+  // 按时间列优先铺开，动画就是「一个月一个月地推进」
+  cells.sort((a,b) => a.col - b.col || a.row - b.row);
+
+  const tail = got.map(g => compound(months.map(m => (g.series.find(r => r.ym === m) || {ret:0}).ret)));
+  const rank = tail.map((v,i) => ({ v, name: got[i].name })).sort((a,b) => b.v - a.v);
+
+  return {
+    kind: 'cmp',
+    rowLabels: got.map(g => g.name),
+    colLabels: months.map(m => m.slice(2).replace('-','/')),
+    tailLabel: '累计', tail, cells,
+    span: `${months[0]} 至 ${months[months.length-1]} · 共 ${months.length} 个月`,
+    title: `${listLabel()}月度轮动`,
+    sub: `${listLabel()} · 月度涨跌幅 · 单位：%`,
+    stats: [
+      ['冠军', `${rank[0].name} ${rank[0].v > 0 ? '+' : ''}${rank[0].v.toFixed(0)}%`],
+      ['垫底', `${rank[rank.length-1].name} ${rank[rank.length-1].v.toFixed(0)}%`],
+      ['标的数', got.length + ' 个'],
+      ['跨度', months.length + ' 个月'],
+    ],
+  };
+}
+
+/* ==================== 动画参数 ==================== */
+function buildAnim(){
+  const n = DATA.cells.length;
+  const TOTAL = cfg.dur * 1000;
+  const intro = Math.min(2200, TOTAL*0.05);
+  const finale = clamp(TOTAL*0.14, 2500, 8000);
+  const growSpan = Math.max(1, TOTAL - intro - finale);
+  const cellDur = Math.min(900, Math.max(180, growSpan / n * 2.4));
+  anim = {
+    n, TOTAL, intro, finale, tFinale: TOTAL - finale,
+    cellDur, stagger: n > 1 ? (growSpan - cellDur)/(n-1) : 0,
+    absMax: Math.max(...DATA.cells.map(c => Math.abs(c.v))) || 1,
+  };
+}
+
+/* ==================== 渲染 ==================== */
+const cv = $('cv'), ctx = cv.getContext('2d');
+
+function fitPreview(){
+  const stage = $('stage'), wrap = $('wrap');
+  const availW = stage.clientWidth - 36, availH = stage.clientHeight - 36;
+  if (availW <= 0 || availH <= 0) return;
+  const ar = cv.width / cv.height;
+  let w = availH * ar, h = availH;
+  if (w > availW){ w = availW; h = availW / ar; }
+  wrap.style.width = w + 'px'; wrap.style.height = h + 'px';
+}
+window.addEventListener('resize', fitPreview);
+
+const S = () => cv.height/1920;
+const F = (px,w) => `${w||''} ${Math.round(px*S())}px "Microsoft YaHei",sans-serif`.trim();
+const FOOTER_Y = () => cv.height - cfg.padB*S();
+const HEAD_UP = () => cfg.hideTitle ? cv.height*0.047 : 0;
+
+function drawBg(){
+  const g = ctx.createLinearGradient(0,0,0,cv.height);
+  g.addColorStop(0,'#0c1a14'); g.addColorStop(.5,'#090e1d'); g.addColorStop(1,'#070914');
+  ctx.fillStyle = g; ctx.fillRect(0,0,cv.width,cv.height);
+}
+
+function fitPx(text, px, maxW, weight){
+  ctx.font = F(px, weight);
+  const w = ctx.measureText(text).width;
+  return w <= maxW ? px : Math.max(px*0.5, px*maxW/w);
+}
+
+function drawSegments(segs, cx, y, px){
+  let total = 0;
+  for (const s of segs){ ctx.font = F(px, s.weight); total += ctx.measureText(s.text).width; }
+  ctx.save(); ctx.textAlign = 'left';
+  let x = cx - total/2;
+  for (const s of segs){
+    ctx.font = F(px, s.weight); ctx.fillStyle = s.color;
+    ctx.fillText(s.text, x, y); x += ctx.measureText(s.text).width;
+  }
+  ctx.restore();
+}
+
+function drawHeader(t, cur){
+  const W = cv.width, H = cv.height, s = S();
+  const a = clamp(t/1000, 0, 1);
+  ctx.save(); ctx.globalAlpha = a; ctx.textAlign = 'center';
+  const up = HEAD_UP();
+
+  if (!cfg.hideTitle){
+    const title = cfg.title.trim() || DATA.title;
+    ctx.fillStyle = '#f2f6ff'; ctx.font = F(fitPx(title, 62, W - 120*s, '700'), '700');
+    ctx.fillText(title, W/2, H*0.155);
+  }
+  ctx.fillStyle = '#8296b8'; ctx.font = F(25);
+  ctx.fillText(DATA.sub, W/2, H*0.188 - up);
+  drawSegments([{ text: DATA.span, color:'#8296b8' }], W/2, H*0.218 - up, 24);
+
+  if (cur){
+    ctx.fillStyle = '#fbbf24'; ctx.font = F(36,'600');
+    ctx.fillText(cur.label, W/2, H*0.262 - up);
+    const c = retColor(cur.v, anim.absMax);
+    ctx.fillStyle = rgba(c,1); ctx.font = F(118,'700');
+    ctx.shadowColor = rgba(c,.5); ctx.shadowBlur = 26*s;
+    ctx.fillText((cur.v > 0 ? '+' : '') + cur.v.toFixed(2), W/2, H*0.330 - up);
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = '#8296b8'; ctx.font = F(26);
+    ctx.fillText('%', W/2, H*0.357 - up);
+  }
+  ctx.restore();
+}
+
+/** 通用网格：行标签 + 列表头 + 格子 + 末列汇总，两种矩阵共用 */
+function drawGrid(t){
+  const W = cv.width, H = cv.height, s = S();
+  const ml = cfg.padL*s, mr = cfg.padR*s;
+  const plotW = W - ml - mr;
+  const y0 = H*0.395 - HEAD_UP();
+  const y1 = FOOTER_Y() - 250*s;                 // 给统计卡留出位置
+  const rows = DATA.rowLabels.length, cols = DATA.colLabels.length + 1;
+
+  const headH = Math.min(42*s, (y1-y0)*0.10);
+  const labelW = Math.min(DATA.kind === 'cmp' ? 130*s : 80*s, plotW*0.22);
+  const cw = (plotW - labelW) / cols;
+  const ch = Math.min(cw*1.05, (y1 - y0 - headH) / rows);
+  const top = y0 + headH + ((y1 - y0 - headH) - ch*rows)/2;
+  const gap = Math.max(2*s, Math.min(cw,ch)*0.09);
+  let cur = null;
+
+  ctx.save(); ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+
+  ctx.fillStyle = '#5b6f92'; ctx.font = F(clamp(cw/s*0.30, 11, 22));
+  DATA.colLabels.concat([DATA.tailLabel]).forEach((lb, c) => {
+    ctx.fillText(lb, ml + labelW + c*cw + cw/2, top - headH*0.42);
+  });
+
+  ctx.textAlign = 'right';
+  DATA.rowLabels.forEach((lb, r) => {
+    ctx.fillStyle = '#93a9cc'; ctx.font = F(clamp(ch/s*0.38, 13, 26), '600');
+    ctx.fillText(lb, ml + labelW - 10*s, top + r*ch + ch/2);
+  });
+  ctx.textAlign = 'center';
+
+  DATA.cells.forEach((cell, i) => {
+    const st = anim.intro + i*anim.stagger;
+    if (t <= st) return;
+    const raw = clamp((t - st)/anim.cellDur, 0, 1);
+    const x = ml + labelW + cell.col*cw, y = top + cell.row*ch;
+    const col = retColor(cell.v, anim.absMax);
+    ctx.globalAlpha = 0.25 + 0.75*raw;
+    if (raw < 1){ ctx.shadowColor = rgba(col,.9); ctx.shadowBlur = 16*s; cur = cell; }
+    ctx.fillStyle = rgba(col,.95);
+    ctx.beginPath();
+    ctx.roundRect(x+gap/2, y+gap/2, cw-gap, ch-gap, Math.max(2*s, Math.min(cw,ch)*0.14));
+    ctx.fill(); ctx.shadowBlur = 0;
+    if (cw > 46*s && raw > 0.5){
+      ctx.globalAlpha = (raw-0.5)/0.5;
+      ctx.fillStyle = '#f4f8ff'; ctx.font = F(clamp(cw/s*0.24, 10, 18), '600');
+      ctx.fillText(cell.v.toFixed(0), x+cw/2, y+ch/2);
+    }
+    ctx.globalAlpha = 1;
+    if (raw >= 1 && !cur) cur = cell;
+  });
+
+  // 末列汇总：等这一行的格子都点完再出现
+  DATA.tail.forEach((v, r) => {
+    const last = DATA.cells.reduce((acc,c,i) => c.row === r ? i : acc, -1);
+    if (last < 0) return;
+    const a = clamp((t - anim.intro - last*anim.stagger - anim.cellDur)/500, 0, 1);
+    if (a <= 0) return;
+    const x = ml + labelW + DATA.colLabels.length*cw, y = top + r*ch;
+    ctx.globalAlpha = a;
+    ctx.strokeStyle = v >= 0 ? 'rgba(239,68,68,.85)' : 'rgba(34,197,94,.85)';
+    ctx.lineWidth = 2*s;
+    ctx.beginPath();
+    ctx.roundRect(x+gap/2, y+gap/2, cw-gap, ch-gap, Math.max(2*s, Math.min(cw,ch)*0.14));
+    ctx.stroke();
+    ctx.fillStyle = v >= 0 ? '#ff8080' : '#4ade80';
+    ctx.font = F(clamp(cw/s*0.24, 10, 18), '700');
+    ctx.fillText(v.toFixed(0), x+cw/2, y+ch/2);
+    ctx.globalAlpha = 1;
+  });
+
+  ctx.textBaseline = 'alphabetic';
+  ctx.restore();
+  return cur;
+}
+
+function drawStats(t){
+  const W = cv.width, s = S();
+  const a = clamp((t - anim.tFinale + 800)/900, 0, 1);
+  if (a <= 0) return;
+  const ml = cfg.padL*s, plotW = W - ml - cfg.padR*s;
+  const gap = 14*s, cw = (plotW - gap*3)/4, ch = 132*s;
+  const y = FOOTER_Y() - 192*s;
+  ctx.save(); ctx.globalAlpha = a;
+  DATA.stats.forEach(([k,v], i) => {
+    const x = ml + i*(cw+gap);
+    ctx.fillStyle='rgba(18,28,50,.9)'; ctx.strokeStyle='rgba(120,150,210,.26)'; ctx.lineWidth=1.5*s;
+    ctx.beginPath(); ctx.roundRect(x,y,cw,ch,14*s); ctx.fill(); ctx.stroke();
+    ctx.textAlign='center';
+    ctx.fillStyle='#8296b8'; ctx.font=F(21);
+    ctx.fillText(k, x+cw/2, y+42*s);
+    ctx.fillStyle='#eaf1ff'; ctx.font=F(fitPx(v, 30, cw-16*s, '600'), '600');
+    ctx.fillText(v, x+cw/2, y+92*s);
+  });
+  ctx.globalAlpha = a*0.75;
+  ctx.fillStyle='#5b6f92'; ctx.font=F(20); ctx.textAlign='center';
+  ctx.fillText('数据来源：腾讯财经行情接口 · 仅供参考，不构成投资建议', W/2, FOOTER_Y());
+  ctx.restore();
+}
+
+function drawProgress(t){
+  const W = cv.width, H = cv.height;
+  const p = clamp(t/anim.TOTAL,0,1), hh = Math.max(4, H*0.003);
+  ctx.fillStyle='rgba(120,150,210,.14)'; ctx.fillRect(0,H-hh,W,hh);
+  const g = ctx.createLinearGradient(0,0,W,0);
+  g.addColorStop(0,'#22c55e'); g.addColorStop(1,'#0ea5e9');
+  ctx.fillStyle=g; ctx.fillRect(0,H-hh,W*p,hh);
+}
+
+function renderFrame(t){
+  lastFrameT = t;
+  drawBg();
+  if (!DATA || !anim) return;
+  const cur = drawGrid(t);
+  drawStats(t);
+  drawHeader(t, cur);
+  drawProgress(t);
+}
+
+function drawIntro(){
+  drawBg();
+  const W = cv.width, H = cv.height;
+  ctx.textAlign='center';
+  ctx.fillStyle='#e7eefc'; ctx.font=F(58,'700');
+  ctx.fillText('月度矩阵', W/2, H*0.44);
+  ctx.fillStyle='#8296b8'; ctx.font=F(26);
+  ctx.fillText('← 选好标的后点「获取数据」', W/2, H*0.50);
+}
+
+/* ==================== 播放与导出 ==================== */
+function loop(now){
+  if (lastTs === null) lastTs = now;
+  const dt = now - lastTs; lastTs = now;
+  if (playing && anim){
+    elapsed = Math.min(elapsed + dt, anim.TOTAL);
+    renderFrame(elapsed);
+    if (exporting){
+      showBar(true, elapsed/anim.TOTAL);
+      $('recTxt').textContent = `录制中 ${(elapsed/1000).toFixed(0)}s / ${cfg.dur}s`;
+    }
+    if (elapsed >= anim.TOTAL) playing = false;
+  }
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+
+async function exportMp4(){
+  if (!MediaRecorder.isTypeSupported(MIME)){
+    setStatus('当前浏览器不支持 MP4 录制，请用 Chrome 或 Edge 最新版打开。','err');
+    return;
+  }
+  exporting = true; setControls(false);
+  $('recdot').style.display = 'flex'; $('safe').style.display = 'none';
+
+  const scale = (cfg.w*cfg.h)/(1080*1920) * (cfg.fps/30);
+  const stream = cv.captureStream(cfg.fps);
+  const rec = new MediaRecorder(stream, { mimeType: MIME, videoBitsPerSecond: Math.round(cfg.mbps*1e6*scale) });
+  const chunks = [];
+  rec.ondataavailable = e => { if (e.data.size > 0) chunks.push(e.data); };
+  const stopped = new Promise(res => { rec.onstop = res; });
+
+  elapsed = 0; lastTs = null; playing = true;
+  rec.start(1000);
+  await new Promise(res => { const iv = setInterval(() => { if (!playing){ clearInterval(iv); res(); } }, 60); });
+
+  renderFrame(anim.TOTAL);
+  await new Promise(r => setTimeout(r, 350));
+  rec.stop(); await stopped;
+  stream.getTracks().forEach(tr => tr.stop());
+
+  const blob = new Blob(chunks, { type:'video/mp4' });
+  const name = `月度矩阵_${DATA.kind === 'year' ? cfg.target.name : listLabel()}_${cfg.w}x${cfg.h}.mp4`;
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href = url; a.download = name; a.click();
+
+  const probe = await inspectVideo(url);
+  setTimeout(() => URL.revokeObjectURL(url), 60000);
+  exporting = false;
+  $('recdot').style.display = 'none'; showBar(false);
+  $('safe').style.display = $('cbSafe').checked ? 'block' : 'none';
+  setControls(true);
+  setStatus(`导出完成 · <b>${(blob.size/1048576).toFixed(1)} MB</b><br>
+             实测 <b>${probe.w}×${probe.h}</b> · 时长 <b>${probe.dur}</b> 秒`, 'ok');
+}
+
+function inspectVideo(url){
+  return new Promise(resolve => {
+    const v = document.createElement('video');
+    v.preload='metadata'; v.muted=true; v.src=url;
+    const done = () => resolve({ w:v.videoWidth, h:v.videoHeight,
+                                 dur: Number.isFinite(v.duration) ? v.duration.toFixed(1) : '未知' });
+    v.onloadedmetadata = () => {
+      if (Number.isFinite(v.duration)) return done();
+      v.currentTime = 1e6;
+      v.ontimeupdate = () => { v.ontimeupdate = null; done(); };
+      setTimeout(done, 1500);
+    };
+    v.onerror = () => resolve({ w:0, h:0, dur:'解析失败' });
+  });
+}
+
+function exportCover(){
+  const tag = DATA ? (DATA.kind === 'year' ? cfg.target.name : listLabel()) : '月度矩阵';
+  cv.toBlob(blob => {
+    if (!blob){ setStatus('封面生成失败', 'err'); return; }
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = `封面_月度矩阵_${tag}_${cfg.w}x${cfg.h}.png`; a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 30000);
+    setStatus(`封面已保存 · <b>${cfg.w}×${cfg.h}</b> PNG<br>存的就是预览里当前停着的这一帧。`, 'ok');
+  }, 'image/png');
+}
+
+/* ==================== 配置持久化 ====================
+   UI 交互冒泡到 document 时统一落盘，省得每个控件回调里都写一遍。 */
+const PERSIST = ['mode','target','years','list','custom','months','dur','w','h','fps','mbps',
+                 'padL','padR','padB','hideTitle','title'];
+const SEG_KEY = { segMode:'mode', segYears:'years', segList:'list', segMonths:'months',
+                  segRes:'w', segFps:'fps', segQ:'mbps' };
+let saveTimer = null;
+
+function saveCfg(){
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => {
+    const keep = {};
+    for (const k of PERSIST) keep[k] = cfg[k];
+    try { localStorage.setItem(CFG_KEY, JSON.stringify(keep)); } catch (e){ /* 隐私模式忽略 */ }
+  }, 300);
+}
+['click','input','change'].forEach(ev => document.addEventListener(ev, saveCfg));
+
+function restoreCfg(){
+  let saved = null;
+  try { saved = JSON.parse(localStorage.getItem(CFG_KEY)); } catch (e){ /* 坏数据忽略 */ }
+  if (saved) for (const k of PERSIST) if (saved[k] !== undefined) cfg[k] = saved[k];
+  try { cfg.stocks = JSON.parse(localStorage.getItem(STOCK_KEY)) || []; } catch (e){ cfg.stocks = []; }
+
+  for (const [id, attr] of [['segMode','mode'],['segYears','y'],['segList','list'],
+                            ['segMonths','n'],['segRes','w'],['segFps','fps'],['segQ','q']]){
+    const box = $(id); if (!box) continue;
+    [...box.children].forEach(b => b.classList.toggle('on', String(b.dataset[attr]) === String(cfg[SEG_KEY[id]])));
+  }
+  applyMode();
+  $('rDur').value = cfg.dur; $('vDur').textContent = cfg.dur + ' 秒';
+  $('cbNoTitle').checked = cfg.hideTitle;
+  $('tTitle').value = cfg.title; $('tTitle').disabled = cfg.hideTitle;
+  ['L','R','B'].forEach(k => { $('rPad'+k).value = cfg['pad'+k]; $('vPad'+k).textContent = cfg['pad'+k]; });
+  cv.width = cfg.w; cv.height = cfg.h;
+  $('curTarget').innerHTML = `当前：<b>${cfg.target.name}</b> <span style="color:var(--dim)">${cfg.target.code.toUpperCase()}</span>`;
+}
+
+function applyMode(){
+  const year = cfg.mode === 'year';
+  $('boxYear').style.display = year ? 'block' : 'none';
+  $('boxCmp').style.display  = year ? 'none' : 'block';
+  $('picker').style.display   = (!year && cfg.list === 'custom') ? 'grid' : 'none';
+  $('stockBox').style.display = (!year && cfg.list === 'stocks') ? 'block' : 'none';
+}
+
+/* ==================== 控件 ==================== */
+function setControls(on){
+  ['btnFetch','btnPreview','btnExport','btnCover'].forEach(id => { $(id).disabled = !on; });
+  if (on && !DATA){ ['btnPreview','btnExport','btnCover'].forEach(id => { $(id).disabled = true; }); }
+}
+function bindSeg(id, fn){
+  $(id).addEventListener('click', e => {
+    const b = e.target.closest('button'); if (!b || b.disabled) return;
+    [...$(id).children].forEach(x => x.classList.remove('on'));
+    b.classList.add('on'); fn(b);
+  });
+}
+
+bindSeg('segMode',   b => { cfg.mode = b.dataset.mode; applyMode(); updateCount(); });
+bindSeg('segYears',  b => { cfg.years = parseInt(b.dataset.y,10); });
+bindSeg('segList',   b => { cfg.list = b.dataset.list; applyMode(); updateCount(); });
+bindSeg('segMonths', b => { cfg.months = parseInt(b.dataset.n,10); });
+bindSeg('segRes',    b => {
+  cfg.w = parseInt(b.dataset.w,10); cfg.h = parseInt(b.dataset.h,10);
+  cv.width = cfg.w; cv.height = cfg.h; fitPreview();
+  if (anim) renderFrame(lastFrameT); else drawIntro();
+});
+bindSeg('segFps', b => { cfg.fps = parseInt(b.dataset.fps,10); });
+bindSeg('segQ',   b => { cfg.mbps = parseInt(b.dataset.q,10); });
+
+$('rDur').addEventListener('input', e => {
+  cfg.dur = parseInt(e.target.value,10);
+  $('vDur').textContent = cfg.dur + ' 秒';
+  if (DATA){ buildAnim(); elapsed = 0; renderFrame(anim.TOTAL); }
+});
+[['rPadL','vPadL','padL'], ['rPadR','vPadR','padR'], ['rPadB','vPadB','padB']].forEach(([sl,out,key]) => {
+  $(sl).addEventListener('input', e => {
+    cfg[key] = parseInt(e.target.value,10);
+    $(out).textContent = cfg[key];
+    if (anim) renderFrame(lastFrameT);
+  });
+});
+$('cbSafe').addEventListener('change', e => { $('safe').style.display = e.target.checked?'block':'none'; });
+$('cbNoTitle').addEventListener('change', e => {
+  cfg.hideTitle = e.target.checked;
+  $('tTitle').disabled = cfg.hideTitle;
+  if (anim) renderFrame(lastFrameT);
+});
+$('tTitle').addEventListener('input', e => {
+  cfg.title = e.target.value;
+  if (anim) renderFrame(lastFrameT);
+});
+
+wireSearch('code',  'sugg',  setTarget);
+wireSearch('code2', 'sugg2', addStock);
+$('btnUse').addEventListener('click', () => setTarget($('code').value, ''));
+$('btnAdd').addEventListener('click', () => addStock($('code2').value, ''));
+
+$('btnFetch').addEventListener('click', async () => {
+  setControls(false);
+  try {
+    await loadData();
+    buildAnim();
+    elapsed = 0; playing = false;
+    renderFrame(anim.TOTAL);
+    ['btnPreview','btnExport','btnCover'].forEach(id => { $(id).disabled = false; });
+    $('tTitle').placeholder = `留空则用「${DATA.title}」`;
+    setStatus(`<b>${DATA.title}</b><br>${DATA.span} · ${DATA.cells.length} 个格子<br>
+               ${DATA.stats[0][0]} <b>${DATA.stats[0][1]}</b> · ${DATA.stats[1][0]} <b>${DATA.stats[1][1]}</b>`, 'ok');
+  } catch (err){
+    setStatus('获取失败：' + err.message, 'err');
+  } finally {
+    $('btnFetch').disabled = false;
+  }
+});
+$('btnPreview').addEventListener('click', () => { if (anim){ elapsed=0; lastTs=null; playing=true; } });
+$('btnExport').addEventListener('click', () => {
+  exportMp4().catch(e => {
+    exporting=false; setControls(true);
+    $('recdot').style.display='none'; showBar(false);
+    setStatus('导出失败：'+e.message, 'err');
+  });
+});
+$('btnCover').addEventListener('click', exportCover);
+
+/* 抖音安全区参考线 */
+(function(){
+  const zones = [
+    ['top:0;left:0;right:0;height:12%','顶部信息区','top:4px;left:6px'],
+    ['top:38%;right:0;width:18%;height:47%','右侧按钮','top:38%;right:6px'],
+    ['bottom:0;left:0;right:0;height:22%','底部文案区','bottom:4px;left:6px'],
+  ];
+  zones.forEach(([css,label,lpos]) => {
+    const d=document.createElement('div'); d.style.cssText=css; $('safe').appendChild(d);
+    const s=document.createElement('span'); s.textContent=label; s.style.cssText=lpos; $('safe').appendChild(s);
+  });
+})();
+
+/* 初始画面 */
+renderPresets();
+restoreCfg();
+renderPicked();
+updateCount();
+fitPreview();
+drawIntro();
+</script>
+</body>
+</html>
