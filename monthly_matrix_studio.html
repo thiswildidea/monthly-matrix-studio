@@ -28,6 +28,8 @@
     border-radius:8px;cursor:pointer;transition:.16s}
   .seg button:hover{background:rgba(110,160,255,.2);color:var(--txt)}
   .seg button.on{background:var(--accent);border-color:var(--accent);color:#06240f;font-weight:600}
+  /* 年数/月数是一排短按钮，放宽换行、缩小最小宽度，免得一个占一行 */
+  .seg.tight button{min-width:0;flex:0 0 auto;padding:7px 10px}
 
   .row{display:flex;gap:8px;align-items:center}
   input[type=text]{flex:1;width:100%;padding:8px 10px;font:inherit;font-size:13px;
@@ -140,11 +142,7 @@
     </div>
     <div class="grp">
       <label>年数</label>
-      <div class="seg" id="segYears">
-        <button data-y="5">近5年</button>
-        <button data-y="10" class="on">近10年</button>
-        <button data-y="0">全部</button>
-      </div>
+      <div class="seg tight" id="segYears"></div>
     </div>
   </div>
 
@@ -172,11 +170,7 @@
     </div>
     <div class="grp">
       <label>月数</label>
-      <div class="seg" id="segMonths">
-        <button data-n="12" class="on">近12月</button>
-        <button data-n="18">近18月</button>
-        <button data-n="24">近24月</button>
-      </div>
+      <div class="seg tight" id="segMonths"></div>
     </div>
   </div>
 
@@ -471,6 +465,29 @@ function renderPicked(){
       renderPicked(); updateCount();
     };
     chip.append(b, x); box.appendChild(chip);
+  });
+}
+
+/** 年数、月数这两排按钮是生成的，省得在 HTML 里手写十几个 */
+function renderRangeSegs(){
+  const yb = $('segYears'); yb.innerHTML = '';
+  [1,2,3,4,5,6,7,8,9,10].forEach(y => {
+    const b = document.createElement('button');
+    b.dataset.y = y; b.textContent = y + '年';
+    if (cfg.years === y) b.classList.add('on');
+    yb.appendChild(b);
+  });
+  const all = document.createElement('button');
+  all.dataset.y = 0; all.textContent = '全部';
+  if (cfg.years === 0) all.classList.add('on');
+  yb.appendChild(all);
+
+  const mb = $('segMonths'); mb.innerHTML = '';
+  [6,12,18,24,36,48].forEach(n => {
+    const b = document.createElement('button');
+    b.dataset.n = n; b.textContent = n + '月';
+    if (cfg.months === n) b.classList.add('on');
+    mb.appendChild(b);
   });
 }
 
@@ -1047,6 +1064,7 @@ $('btnCover').addEventListener('click', exportCover);
 /* 初始画面 */
 renderPresets();
 restoreCfg();
+renderRangeSegs();
 renderPicked();
 updateCount();
 fitPreview();
