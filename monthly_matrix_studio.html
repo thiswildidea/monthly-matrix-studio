@@ -47,16 +47,17 @@
   .mini:hover{background:rgba(34,197,94,.36)}
 
   #searchWrap{position:relative;flex:1}
-  #sugg{position:absolute;top:calc(100% + 5px);left:0;right:0;z-index:50;display:none;
+  /* 两个搜索框的下拉层共用一套样式：#sugg（单标的）与 #sugg2（自选股） */
+  #sugg,#sugg2{position:absolute;top:calc(100% + 5px);left:0;right:0;z-index:50;display:none;
     max-height:250px;overflow-y:auto;background:#131c33;border:1px solid var(--line);
     border-radius:9px;box-shadow:0 12px 34px rgba(0,0,0,.6)}
-  #sugg div{display:flex;align-items:center;gap:9px;padding:8px 11px;font-size:12.5px;
+  #sugg div,#sugg2 div{display:flex;align-items:center;gap:9px;padding:8px 11px;font-size:12.5px;
     cursor:pointer;border-bottom:1px solid rgba(120,150,210,.08)}
-  #sugg div:last-child{border-bottom:none}
-  #sugg div:hover,#sugg div.sel{background:rgba(34,197,94,.28)}
-  #sugg b{color:var(--txt);font-weight:600}
-  #sugg span{color:var(--dim);font-variant-numeric:tabular-nums}
-  #sugg em{font-style:normal;margin-left:auto;font-size:11px;padding:1px 7px;border-radius:4px;
+  #sugg div:last-child,#sugg2 div:last-child{border-bottom:none}
+  #sugg div:hover,#sugg div.sel,#sugg2 div:hover,#sugg2 div.sel{background:rgba(34,197,94,.28)}
+  #sugg b,#sugg2 b{color:var(--txt);font-weight:600}
+  #sugg span,#sugg2 span{color:var(--dim);font-variant-numeric:tabular-nums}
+  #sugg em,#sugg2 em{font-style:normal;margin-left:auto;font-size:11px;padding:1px 7px;border-radius:4px;
     background:rgba(34,197,94,.25);color:#bbf7d0}
 
   #picked{display:flex;flex-wrap:wrap;gap:6px;margin-top:9px}
@@ -300,7 +301,7 @@ function jsonp(url){
     const timer = setTimeout(() => { cleanup(); reject(new Error('请求超时')); }, 15000);
     function cleanup(){ clearTimeout(timer); delete window[cb]; s.remove(); }
     window[cb] = d => { cleanup(); resolve(d); };
-    s.onerror = () => { cleanup(); reject(new Error('网络请求失败')); };
+    s.onerror = () => { cleanup(); reject(new Error('网络请求失败（预览沙箱会拦跨域脚本，请用启动脚本在浏览器打开）')); };
     s.src = url + '&_callback=' + cb;
     document.head.appendChild(s);
   });
@@ -335,9 +336,14 @@ function normalizeCode(raw){
 }
 
 /* ==================== 检索 ====================
-   smartbox 两个坑：响应体是 GBK 但响应头谎称 utf-8，必须显式给 script 指定
-   charset；且没有 CORS 头，fetch 会被拦，只能用 script 标签。 */
-function searchStock(q){
+   三级通道，逐级降级：
+   ① 腾讯 smartbox 脚本注入（主通道）。响应没有 CORS 头，fetch 读不到，只能
+      用 script 标签；响应体是 GBK 但响应头谎称 utf-8，必须显式指定 charset。
+   ② 东方财富 suggest JSONP（备通道，cb 参数实测支持函数包裹）。与腾讯不同域：
+      smartbox 被广告拦截规则、hosts 或受限环境（预览沙箱）拦掉时仍可用。
+   ③ 内置清单离线匹配（前两条都被环境拦截时兜底，断网也能搜指数/行业/主题）。
+   注意：受限沙箱里连月K的 JSONP 也会被拦，离线只能保证搜索可用，取数仍需浏览器。 */
+function searchTencent(q){
   return new Promise((resolve, reject) => {
     const s = document.createElement('script');
     s.charset = 'GBK';
@@ -359,6 +365,72 @@ function searchStock(q){
   });
 }
 
+function searchEastmoney(q){
+  const cb = '__em' + Math.random().toString(36).slice(2);
+  const url = 'https://searchapi.eastmoney.com/api/suggest/get?input=' + encodeURIComponent(q) +
+              '&type=14&token=D43BF722C8E33BDC906FB84D85E326E8&count=8&cb=' + cb;
+  return new Promise((resolve, reject) => {
+    const s = document.createElement('script');
+    const timer = setTimeout(() => { cleanup(); reject(new Error('请求超时')); }, 8000);
+    function cleanup(){ clearTimeout(timer); delete window[cb]; s.remove(); }
+    window[cb] = d => { cleanup(); resolve(d); };
+    s.onerror = () => { cleanup(); reject(new Error('搜索请求失败')); };
+    s.src = url;
+    document.head.appendChild(s);
+  }).then(d => {
+    const rows = (d && d.QuotationCodeTable && d.QuotationCodeTable.Data) || [];
+    return rows.map(r => {
+      // QuoteID 形如 1.603175(沪) / 0.000001(深) / 0.920799(京) / 116.00700(港) / 105.AAPL(美)
+      const dot = String(r.QuoteID || '').indexOf('.');
+      if (dot <= 0) return null;
+      const mkt = r.QuoteID.slice(0, dot), num = r.QuoteID.slice(dot + 1);
+      let market;
+      if (mkt === '1') market = 'sh';
+      else if (mkt === '0') market = /^[489]\d{5}$/.test(num) ? 'bj' : 'sz';
+      else if (mkt === '116') market = 'hk';
+      else if (mkt === '105' || mkt === '106' || mkt === '107') market = 'us';
+      else return null;
+      return { market, num, name: cleanName(r.Name),
+               type: (r.SecurityType === '5' || r.Classify === 'Index') ? 'ZS' : 'GP',
+               code: market + num };
+    }).filter(r => r && r.num && r.name);
+  });
+}
+
+/* 内置清单的拼音缩写，离线兜底时用 */
+const LOCAL_PY = {
+  sh000001:'szzs', sz399001:'szcz', sh000300:'hs300', sh000905:'zz500',
+  sz399006:'cybz', sh000688:'kc50', sz399005:'zx100', sh000016:'sz50',
+  sh000928:'ny', sh000929:'cl', sh000930:'gy', sh000931:'kxxf',
+  sh000932:'zyxf', sh000933:'yyws', sh000934:'jr', sh000935:'xxjs',
+  sh000936:'tx', sh000937:'gysy', sz399997:'bj', sz399975:'zq',
+  sz399986:'yh', sz399989:'yl', sz399967:'jg', sz399971:'cm',
+  sz399808:'xny', sz399976:'xnych', sh000827:'hb', sh000922:'hl',
+  sz399998:'mt', sh000819:'ysjs', sz399995:'jj', sh000949:'ny',
+};
+
+function searchLocal(q){
+  const s = q.toLowerCase();
+  const pool = LIST_INDEX.concat(LIST_L1, LIST_THEME,
+                cfg.stocks.map(it => Object.assign({ _stock:true }, it)));
+  return pool
+    .filter(it => it.code.includes(s) || it.name.includes(q) || String(LOCAL_PY[it.code] || '').includes(s))
+    .slice(0, 8)
+    .map(it => ({ market: it.code.slice(0,2), num: it.code.slice(2), name: it.name,
+                  type: it._stock ? 'GP' : 'ZS', code: it.code }));
+}
+
+let SEARCH_SRC = 'online';   // 最近一次搜索实际用的通道：online | local
+async function searchStock(q){
+  let online = false;   // 至少一条在线通道有响应（哪怕返回空结果）
+  try { const r = await searchTencent(q);   if (r.length){ SEARCH_SRC = 'online'; return r; } online = true; } catch (e){}
+  try { const r = await searchEastmoney(q); if (r.length){ SEARCH_SRC = 'online'; return r; } online = true; } catch (e){}
+  const local = searchLocal(q);
+  if (local.length){ SEARCH_SRC = 'local'; return local; }
+  if (online) return [];   // 通道正常，纯粹没有这个标的
+  throw new Error('ENV_BLOCKED');
+}
+
 /** 一个搜索框 = 输入框 + 下拉层 + 选中回调，两处复用 */
 function wireSearch(inputId, boxId, onPick){
   let timer = null, items = [], idx = -1;
@@ -366,7 +438,14 @@ function wireSearch(inputId, boxId, onPick){
   const hide = () => { box.style.display = 'none'; idx = -1; };
   const render = list => {
     box.innerHTML = ''; items = list; idx = -1;
-    if (!list.length){ hide(); return; }
+    if (!list.length){
+      const d = document.createElement('div');
+      d.style.cssText = 'color:#8296b8;cursor:default';
+      d.textContent = '未找到，试试 6 位代码、名称或拼音';
+      box.appendChild(d);
+      box.style.display = 'block';
+      return;
+    }
     list.forEach((r,i) => {
       const d = document.createElement('div');
       const b = document.createElement('b');     b.textContent = r.name;
@@ -384,10 +463,25 @@ function wireSearch(inputId, boxId, onPick){
     clearTimeout(timer);
     if (!q){ hide(); return; }
     timer = setTimeout(async () => {
-      try { render((await searchStock(q)).slice(0,8)); } catch (e){ hide(); }
+      try { render((await searchStock(q)).slice(0,8));
+        if (SEARCH_SRC === 'local')
+          setStatus('离线模式：联网检索被当前环境拦截，只能搜内置清单（指数/行业/主题 + 自选股）', 'err');
+      }
+      catch (e){
+        // 搜索失败以前是静默隐藏，看起来就像搜索坏了；给一条可见的失败提示
+        box.innerHTML = ''; items = []; idx = -1;
+        const d = document.createElement('div');
+        d.style.cssText = 'color:#fca5a5;cursor:default';
+        d.textContent = e.message === 'ENV_BLOCKED'
+          ? '联网检索被当前环境拦截，已切离线模式仍无匹配；请用启动脚本在浏览器打开'
+          : '搜索失败（' + e.message + '），可稍后重试';
+        box.appendChild(d);
+        box.style.display = 'block';
+      }
     }, 220);
   });
   $(inputId).addEventListener('keydown', e => {
+    if (e.isComposing || e.keyCode === 229) return;   // 输入法组词中的回车/方向键不当作提交
     const n = items.length;
     if (e.key === 'Escape'){ hide(); return; }
     if (e.key === 'Enter'){
@@ -444,7 +538,7 @@ function setTarget(code, name){
 
 function addStock(code, name){
   code = normalizeCode(code);
-  if (!code) return;
+  if (!code){ setStatus('识别不了这个代码，请在搜索结果里点选', 'err'); return; }
   if (cfg.stocks.some(s => s.code === code)){ $('code2').value=''; return; }
   if (cfg.stocks.length >= MAX_CMP){ setStatus(`最多 ${MAX_CMP} 个`, 'err'); return; }
   cfg.stocks.push({ code, name: cleanName(name) || code.toUpperCase() });
@@ -709,45 +803,80 @@ function drawHeader(t, cur){
   ctx.restore();
 }
 
-/** 通用网格：行标签 + 列表头 + 格子 + 末列汇总，两种矩阵共用 */
+/** 通用网格：行标签 + 列表头 + 格子 + 末列汇总，两种矩阵共用。
+    多标的模式下月份超过 12 就按 12 个月一条横带折行：每条带自带列标签、
+    行标签和汇总列（中间带 = 小计，末带 = 全期累计），格子始终保持大尺寸。 */
 function drawGrid(t){
   const W = cv.width, H = cv.height, s = S();
   const ml = cfg.padL*s, mr = cfg.padR*s;
   const plotW = W - ml - mr;
   const y0 = H*0.395 - HEAD_UP();
   const y1 = FOOTER_Y() - 250*s;                 // 给统计卡留出位置
-  const rows = DATA.rowLabels.length, cols = DATA.colLabels.length + 1;
+  const rows = DATA.rowLabels.length, months = DATA.colLabels.length;
 
+  const per = 12;                                                // 每条带的月数
+  const bands = DATA.kind === 'cmp' ? Math.ceil(months/per) : 1; // 折行条数
+  const slots = Math.min(months, per) + 1;                       // 每条带列数（含汇总列）
   const headH = Math.min(42*s, (y1-y0)*0.10);
+  const bandGap = 18*s;                                          // 条带之间的空隙
   const labelW = Math.min(DATA.kind === 'cmp' ? 130*s : 80*s, plotW*0.22);
-  const cw = (plotW - labelW) / cols;
-  const ch = Math.min(cw*1.05, (y1 - y0 - headH) / rows);
-  const top = y0 + headH + ((y1 - y0 - headH) - ch*rows)/2;
+  const cw = (plotW - labelW) / slots;
+  const chMax = ((y1 - y0) - (bands-1)*bandGap - bands*headH) / (bands*rows);
+  const ch = Math.min(chMax, Math.max(cw*1.05, Math.min(chMax, 120*s)));
+  const totalH = bands*(headH + rows*ch) + (bands-1)*bandGap;
+  const top0 = y0 + ((y1 - y0) - totalH)/2;
   const gap = Math.max(2*s, Math.min(cw,ch)*0.09);
+  const bandTop = b => top0 + b*(headH + rows*ch + bandGap);
+  const bandCols = b => Math.min((b+1)*per, months) - b*per;     // 该带实际月数
   let cur = null;
 
+  // 每行每月的取值（按 col 下标），算分段小计用
+  const byRow = {};
+  DATA.cells.forEach(c => { (byRow[c.row] ||= [])[c.col] = c.v; });
+  // 格子在 DATA.cells 里的下标，汇总列等该行该带的最后一格点完再出现
+  const idxOf = {};
+  DATA.cells.forEach((c,i) => { idxOf[c.row + '_' + c.col] = i; });
+
   ctx.save(); ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.font = F(clamp(cw/s*0.30, 11, 22));
+  // 列宽装不下「23/01」这类标签时隔 N 列标注一次，汇总列始终保留
+  const lbStep = Math.max(1, Math.ceil(ctx.measureText('00/00').width / (cw*0.92)));
 
-  ctx.fillStyle = '#5b6f92'; ctx.font = F(clamp(cw/s*0.30, 11, 22));
-  DATA.colLabels.concat([DATA.tailLabel]).forEach((lb, c) => {
-    ctx.fillText(lb, ml + labelW + c*cw + cw/2, top - headH*0.42);
-  });
+  for (let b = 0; b < bands; b++){
+    const Tb = bandTop(b), cnt = bandCols(b);
+    const sumLabel = bands === 1 ? DATA.tailLabel : (b < bands-1 ? '小计' : '累计');
+    // 满带汇总固定在第 13 槽；不满的末带紧跟最后一月，避免中间拖一段空档
+    const sumSlot = (b < bands-1 || cnt === per) ? per : cnt;
 
-  ctx.textAlign = 'right';
-  DATA.rowLabels.forEach((lb, r) => {
-    ctx.fillStyle = '#93a9cc'; ctx.font = F(clamp(ch/s*0.38, 13, 26), '600');
-    ctx.fillText(lb, ml + labelW - 10*s, top + r*ch + ch/2);
-  });
-  ctx.textAlign = 'center';
+    ctx.fillStyle = '#5b6f92';
+    for (let c = 0; c < cnt; c++){
+      if (c % lbStep !== 0) continue;
+      ctx.fillText(DATA.colLabels[b*per + c], ml + labelW + c*cw + cw/2, Tb - headH*0.42);
+    }
+    ctx.fillText(sumLabel, ml + labelW + sumSlot*cw + cw/2, Tb - headH*0.42);
+
+    ctx.textAlign = 'right';
+    DATA.rowLabels.forEach((lb, r) => {
+      ctx.fillStyle = '#93a9cc'; ctx.font = F(clamp(ch/s*0.38, 13, 26), '600');
+      ctx.fillText(lb, ml + labelW - 10*s, Tb + r*ch + ch/2);
+    });
+    ctx.textAlign = 'center';
+    ctx.font = F(clamp(cw/s*0.30, 11, 22));
+  }
 
   DATA.cells.forEach((cell, i) => {
     const st = anim.intro + i*anim.stagger;
     if (t <= st) return;
     const raw = clamp((t - st)/anim.cellDur, 0, 1);
-    const x = ml + labelW + cell.col*cw, y = top + cell.row*ch;
+    const b = Math.floor(cell.col/per), local = cell.col - b*per;
+    const x = ml + labelW + local*cw, y = bandTop(b) + cell.row*ch;
     const col = retColor(cell.v, anim.absMax);
     ctx.globalAlpha = 0.25 + 0.75*raw;
-    if (raw < 1){ ctx.shadowColor = rgba(col,.9); ctx.shadowBlur = 16*s; cur = cell; }
+    if (raw < 1){ ctx.shadowColor = rgba(col,.9); ctx.shadowBlur = 16*s; }
+    // 格子按时间顺序遍历，cur 始终取最近开始的格子。
+    // 若在空窗期（stagger > cellDur 时上一格长完、下一格未开始）回退到首个
+    // 已完成的格子，顶部大字会反复跳回第一个月，所以不能只认 raw<1 的格子。
+    cur = cell;
     ctx.fillStyle = rgba(col,.95);
     ctx.beginPath();
     ctx.roundRect(x+gap/2, y+gap/2, cw-gap, ch-gap, Math.max(2*s, Math.min(cw,ch)*0.14));
@@ -758,27 +887,33 @@ function drawGrid(t){
       ctx.fillText(cell.v.toFixed(0), x+cw/2, y+ch/2);
     }
     ctx.globalAlpha = 1;
-    if (raw >= 1 && !cur) cur = cell;
   });
 
-  // 末列汇总：等这一行的格子都点完再出现
-  DATA.tail.forEach((v, r) => {
-    const last = DATA.cells.reduce((acc,c,i) => c.row === r ? i : acc, -1);
-    if (last < 0) return;
-    const a = clamp((t - anim.intro - last*anim.stagger - anim.cellDur)/500, 0, 1);
-    if (a <= 0) return;
-    const x = ml + labelW + DATA.colLabels.length*cw, y = top + r*ch;
-    ctx.globalAlpha = a;
-    ctx.strokeStyle = v >= 0 ? 'rgba(239,68,68,.85)' : 'rgba(34,197,94,.85)';
-    ctx.lineWidth = 2*s;
-    ctx.beginPath();
-    ctx.roundRect(x+gap/2, y+gap/2, cw-gap, ch-gap, Math.max(2*s, Math.min(cw,ch)*0.14));
-    ctx.stroke();
-    ctx.fillStyle = v >= 0 ? '#ff8080' : '#4ade80';
-    ctx.font = F(clamp(cw/s*0.24, 10, 18), '700');
-    ctx.fillText(v.toFixed(0), x+cw/2, y+ch/2);
-    ctx.globalAlpha = 1;
-  });
+  // 汇总列：等这一行在这个带里的格子都点完再出现
+  for (let b = 0; b < bands; b++){
+    const cnt = bandCols(b), lastCol = b*per + cnt - 1;
+    const sumSlot = (b < bands-1 || cnt === per) ? per : cnt;
+    DATA.rowLabels.forEach((lb, r) => {
+      const idx = idxOf[r + '_' + lastCol];
+      if (idx === undefined) return;
+      const a = clamp((t - anim.intro - idx*anim.stagger - anim.cellDur)/500, 0, 1);
+      if (a <= 0) return;
+      const v = bands === 1 ? DATA.tail[r]
+              : b < bands-1 ? compound((byRow[r] || []).slice(b*per, (b+1)*per))
+              : DATA.tail[r];
+      const x = ml + labelW + sumSlot*cw, y = bandTop(b) + r*ch;
+      ctx.globalAlpha = a;
+      ctx.strokeStyle = v >= 0 ? 'rgba(239,68,68,.85)' : 'rgba(34,197,94,.85)';
+      ctx.lineWidth = 2*s;
+      ctx.beginPath();
+      ctx.roundRect(x+gap/2, y+gap/2, cw-gap, ch-gap, Math.max(2*s, Math.min(cw,ch)*0.14));
+      ctx.stroke();
+      ctx.fillStyle = v >= 0 ? '#ff8080' : '#4ade80';
+      ctx.font = F(clamp(cw/s*0.24, 10, 18), '700');
+      ctx.fillText(v.toFixed(0), x+cw/2, y+ch/2);
+      ctx.globalAlpha = 1;
+    });
+  }
 
   ctx.textBaseline = 'alphabetic';
   ctx.restore();

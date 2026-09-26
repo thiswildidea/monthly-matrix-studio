@@ -10,3 +10,6 @@ app.ico
 _*.html
 _*.png
 *.log
+
+# WorkBuddy 本地记忆目录（不入库）
+.workbuddy/
